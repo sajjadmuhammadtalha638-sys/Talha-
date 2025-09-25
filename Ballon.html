@@ -1,96 +1,201 @@
 <!doctype html>
-
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Balloon Popper with AI Chat</title>
+  <title>Balloon Popper Game</title>
   <style>
-    :root{--bg:#0d1226;--panel:#0f1724;--accent:#ff6b6b;--accent2:#ffd166;--muted:#a0aec0}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
-    body{background:linear-gradient(180deg,#071029 0%, #081827 60%);color:#e6eef8;display:flex;align-items:center;justify-content:center}
-    .wrap{width:1100px;max-width:98%;min-height:600px;background:rgba(255,255,255,0.03);border-radius:16px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.6);display:grid;grid-template-columns:1fr 300px 280px;gap:16px}
-    .gamePanel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center}
-    canvas{background:linear-gradient(180deg,#0b1b2b,#05202b);border-radius:8px;margin-top:6px}
-    .side{background:rgba(255,255,255,0.02);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
-    .chat{background:rgba(255,255,255,0.02);border-radius:12px;padding:12px;display:flex;flex-direction:column;height:100%}
-    .chatBox{flex:1;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);padding:8px;border-radius:8px;background:rgba(0,0,0,0.2)}
-    .msg{margin:4px 0;padding:6px 8px;border-radius:8px;max-width:80%}
-    .user{background:var(--accent);color:#081827;align-self:flex-end}
-    .ai{background:rgba(255,255,255,0.1);align-self:flex-start}
-    .chatInput{display:flex;gap:6px;margin-top:6px}
-    .chatInput input{flex:1;padding:6px;border-radius:8px;border:none;background:rgba(255,255,255,0.05);color:inherit}
-    .chatInput button{background:var(--accent2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;color:#081827;font-weight:700}
-    @media (max-width:1000px){.wrap{grid-template-columns:1fr;min-height:720px}}
+    body {
+      margin:0;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+      background:#0d1226;
+      color:#fff;
+      font-family:sans-serif;
+    }
+    .container {
+      display:flex;
+      gap:20px;
+      width:95%;
+      max-width:1200px;
+    }
+    .gamePanel, .side, .chat {
+      background:rgba(255,255,255,0.05);
+      border-radius:12px;
+      padding:12px;
+    }
+    .gamePanel {
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    canvas {
+      background:#081827;
+      border-radius:8px;
+      margin:12px 0;
+    }
+    button {
+      margin:4px;
+      padding:6px 12px;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .chat {
+      width:280px;
+      display:flex;
+      flex-direction:column;
+    }
+    .chatBox {
+      flex:1;
+      overflow-y:auto;
+      border:1px solid rgba(255,255,255,0.1);
+      padding:8px;
+      border-radius:8px;
+      margin-bottom:6px;
+    }
+    .msg {
+      margin:4px 0;
+      padding:6px 8px;
+      border-radius:8px;
+      max-width:80%;
+    }
+    .user { background:#ff6b6b; color:#000; margin-left:auto; }
+    .ai { background:rgba(255,255,255,0.2); }
+    .chatInput { display:flex; gap:6px; }
+    .chatInput input { flex:1; padding:6px; border-radius:6px; border:none; }
+    .chatInput button { background:#ffd166; color:#000; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="container">
+    <!-- Game -->
     <div class="gamePanel">
-      <div class="meta" style="width:100%">
-        <h1>Balloon Popper</h1>
-        <div class="controls">
-          <button id="startBtn">Start</button>
-          <button id="pauseBtn" class="small">Pause</button>
-          <button id="resetBtn" class="small">Reset</button>
-        </div>
+      <h2>Balloon Popper</h2>
+      <div>
+        <button id="startBtn">Start</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="resetBtn">Reset</button>
       </div>
-      <canvas id="gameCanvas" width="800" height="520"></canvas>
-      <div style="width:100%;display:flex;justify-content:space-between;margin-top:8px">
-        <div class="stat"><div style="font-size:12px;color:var(--muted)">Score</div><div id="score" style="font-size:22px">0</div></div>
-        <div class="stat"><div style="font-size:12px;color:var(--muted)">Time</div><div id="time" style="font-size:22px">0s</div></div>
-        <div class="stat"><div style="font-size:12px;color:var(--muted)">Multiplier</div><div id="mult" style="font-size:22px">1x</div></div>
+      <canvas id="gameCanvas" width="600" height="400"></canvas>
+      <div>
+        <span>Score: <span id="score">0</span></span> | 
+        <span>Time: <span id="time">0</span>s</span>
       </div>
-      <footer>Made for fun — try to reach the leaderboard!</footer>
-    </div><div class="side">
-  <div class="leaderboard">
-    <h3>Leaderboard (Top 5)</h3>
-    <ol id="leaderboardList"></ol>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="saveScore" class="small">Save My Score</button>
-      <button id="clearScores" class="small">Clear Scores</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="side">
+      <h3>Leaderboard</h3>
+      <ol id="leaderboardList"></ol>
+      <button id="saveScore">Save Score</button>
+      <button id="clearScores">Clear</button>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat">
+      <h3>AI Chat</h3>
+      <div class="chatBox" id="chatBox"></div>
+      <div class="chatInput">
+        <input type="text" id="chatInput" placeholder="Say something..." />
+        <button id="sendBtn">Send</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="chat">
-  <h3>AI Chat History</h3>
-  <div class="chatBox" id="chatBox"></div>
-  <div class="chatInput">
-    <input type="text" id="chatInput" placeholder="Type a message..." />
-    <button id="sendBtn">Send</button>
-  </div>
-</div>
+<script>
+const canvas=document.getElementById("gameCanvas");
+const ctx=canvas.getContext("2d");
+let balloons=[],score=0,time=0,lastTime=0,running=false,paused=false;
 
-  </div>  <script>
-    // ==== Game (Balloon Popper) — unchanged logic, shortened for space ====
-    const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');
-    const startBtn=document.getElementById('startBtn');const pauseBtn=document.getElementById('pauseBtn');const resetBtn=document.getElementById('resetBtn');
-    const scoreEl=document.getElementById('score');const timeEl=document.getElementById('time');const multEl=document.getElementById('mult');
-    let running=false,lastTime=0,elapsed=0,spawnTimer=0,score=0,multiplier=1,balloons=[];
-    function resetGame(){running=false;lastTime=performance.now();elapsed=0;spawnTimer=0;score=0;multiplier=1;balloons=[];scoreEl.textContent='0';timeEl.textContent='0s';multEl.textContent='1x';ctx.clearRect(0,0,canvas.width,canvas.height);}
-    function startGame(){if(!running){running=true;lastTime=performance.now();requestAnimationFrame(loop);}}
-    function loop(now){if(!running)return;const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;elapsed+=dt;spawnTimer+=dt;if(spawnTimer>0.5){spawnTimer=0;spawnBalloon();}for(let i=balloons.length-1;i>=0;i--){balloons[i].y+=balloons[i].vy*dt*60;if(balloons[i].y<-20)balloons.splice(i,1);}ctx.clearRect(0,0,canvas.width,canvas.height);for(const b of balloons){ctx.beginPath();ctx.arc(b.x,b.y,b.size,0,Math.PI*2);ctx.fillStyle=b.color;ctx.fill();}scoreEl.textContent=score;timeEl.textContent=Math.floor(elapsed)+'s';multEl.textContent=multiplier+'x';requestAnimationFrame(loop);} 
-    function spawnBalloon(){const size=Math.random()*20+20;const x=Math.random()*canvas.width;const y=canvas.height+size;const color=`hsl(${Math.random()*360},80%,60%)`;balloons.push({x,y,size,vy:-50,color});}
-    canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect();const x=e.clientX-r.left;const y=e.clientY-r.top;for(let i=balloons.length-1;i>=0;i--){const b=balloons[i];if(Math.hypot(x-b.x,y-b.y)<b.size){score+=10;balloons.splice(i,1);break;}}});
-    startBtn.onclick=()=>startGame();pauseBtn.onclick=()=>running=!running;resetBtn.onclick=()=>resetGame();resetGame();
+function resetGame(){
+  balloons=[];score=0;time=0;
+  document.getElementById("score").textContent=score;
+  document.getElementById("time").textContent=time;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  running=false;paused=false;
+}
 
-    // ==== Leaderboard ====
-    const saveBtn=document.getElementById('saveScore');const clearBtn=document.getElementById('clearScores');const list=document.getElementById('leaderboardList');const STORAGE_KEY='balloon_scores';
-    function loadScores(){return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');}
-    function saveScores(s){localStorage.setItem(STORAGE_KEY,JSON.stringify(s));}
-    function render(){list.innerHTML='';const s=loadScores();if(s.length==0){list.innerHTML='<li>No scores yet</li>';return;}s.forEach(sc=>{const li=document.createElement('li');li.textContent=`${sc.name} — ${sc.score}`;list.appendChild(li);});}
-    saveBtn.onclick=()=>{let s=loadScores();s.push({name:'Player',score});s.sort((a,b)=>b.score-a.score);s=s.slice(0,5);saveScores(s);render();};clearBtn.onclick=()=>{localStorage.removeItem(STORAGE_KEY);render();};render();
+function startGame(){
+  if(!running){
+    running=true;paused=false;
+    lastTime=performance.now();
+    requestAnimationFrame(loop);
+  }
+}
 
-    // ==== AI Chat History ====
-    const chatBox=document.getElementById('chatBox');const chatInput=document.getElementById('chatInput');const sendBtn=document.getElementById('sendBtn');
-    const CHAT_KEY='ai_chat_history';
-    function loadChat(){return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}
-    function saveChat(c){localStorage.setItem(CHAT_KEY,JSON.stringify(c));}
-    function renderChat(){chatBox.innerHTML='';const c=loadChat();c.forEach(m=>{const div=document.createElement('div');div.className='msg '+m.sender;div.textContent=m.text;chatBox.appendChild(div);});chatBox.scrollTop=chatBox.scrollHeight;}
-    function addMessage(sender,text){const c=loadChat();c.push({sender,text});saveChat(c);renderChat();}
-    sendBtn.onclick=()=>{const val=chatInput.value.trim();if(!val)return;addMessage('user',val);chatInput.value='';// simulate AI response
-      setTimeout(()=>{addMessage('ai','AI says: '+val.split('').reverse().join(''));},600);};
-    renderChat();
-  </script></body>
+function spawnBalloon(){
+  const size=20+Math.random()*20;
+  const x=Math.random()*(canvas.width-size*2)+size;
+  const y=canvas.height+size;
+  const color=`hsl(${Math.random()*360},80%,60%)`;
+  balloons.push({x,y,size,color,vy:-60-Math.random()*40});
+}
+
+function loop(now){
+  if(!running||paused)return;
+  const dt=(now-lastTime)/1000;
+  lastTime=now;
+  time+=dt;
+
+  if(Math.random()<0.02)spawnBalloon();
+
+  for(let i=balloons.length-1;i>=0;i--){
+    balloons[i].y+=balloons[i].vy*dt;
+    if(balloons[i].y<-balloons[i].size)balloons.splice(i,1);
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(const b of balloons){
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.size,0,Math.PI*2);
+    ctx.fillStyle=b.color;
+    ctx.fill();
+  }
+
+  document.getElementById("score").textContent=score;
+  document.getElementById("time").textContent=Math.floor(time);
+
+  requestAnimationFrame(loop);
+}
+
+canvas.addEventListener("click",e=>{
+  const r=canvas.getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  for(let i=balloons.length-1;i>=0;i--){
+    const b=balloons[i];
+    if(Math.hypot(x-b.x,y-b.y)<b.size){
+      score+=10;balloons.splice(i,1);break;
+    }
+  }
+});
+
+document.getElementById("startBtn").onclick=startGame;
+document.getElementById("pauseBtn").onclick=()=>{paused=!paused;if(!paused)lastTime=performance.now(),requestAnimationFrame(loop)};
+document.getElementById("resetBtn").onclick=resetGame;
+resetGame();
+
+// Leaderboard
+const lb=document.getElementById("leaderboardList");
+function loadScores(){return JSON.parse(localStorage.getItem("scores")||"[]");}
+function saveScores(s){localStorage.setItem("scores",JSON.stringify(s));}
+function renderScores(){lb.innerHTML="";const s=loadScores();if(!s.length)return lb.innerHTML="<li>No scores</li>";s.forEach(x=>{const li=document.createElement("li");li.textContent=`${x.name} — ${x.score}`;lb.appendChild(li)});}
+document.getElementById("saveScore").onclick=()=>{let n=prompt("Name:","Player");if(!n)n="Player";let s=loadScores();s.push({name:n,score});s.sort((a,b)=>b.score-a.score);s=s.slice(0,5);saveScores(s);renderScores();};
+document.getElementById("clearScores").onclick=()=>{localStorage.removeItem("scores");renderScores();};
+renderScores();
+
+// Chat
+const chatBox=document.getElementById("chatBox");
+function loadChat(){return JSON.parse(localStorage.getItem("chat")||"[]");}
+function saveChat(c){localStorage.setItem("chat",JSON.stringify(c));}
+function renderChat(){chatBox.innerHTML="";loadChat().forEach(m=>{const d=document.createElement("div");d.className="msg "+m.sender;d.textContent=m.text;chatBox.appendChild(d)});chatBox.scrollTop=chatBox.scrollHeight;}
+function addMsg(sender,text){let c=loadChat();c.push({sender,text});saveChat(c);renderChat();}
+document.getElementById("sendBtn").onclick=()=>{const i=document.getElementById("chatInput");const t=i.value.trim();if(!t)return;addMsg("user",t);i.value="";setTimeout(()=>addMsg("ai","AI: "+t.split("").reverse().join("")),600);};
+renderChat();
+</script>
+</body>
 </html>
