@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DD Clue Data Analyzer</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial, sans-serif; background:#f3f3f3; padding:20px; }
+h2 { margin-top:40px; }
+.container { background:white; padding:20px; border-radius:10px; box-shadow:0 0 10px #ccc; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+td,th { border:1px solid #ddd; padding:6px; font-size:14px; }
+th { background:#222; color:white; }
+input,select,button { padding:8px; margin:5px 0; }
+#charts canvas { margin:25px 0; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>DD Clue Data Analyzer</h1>
+
+<!-- FILE UPLOAD -->
+<input type="file" id="csvFile" accept=".csv"><br><br>
+<button onclick="loadCSV()">Load CSV</button>
+
+<hr>
+
+<h2>Preview Data</h2>
+<div id="preview"></div>
+
+<hr>
+
+<h2>Descriptive Statistics</h2>
+<div id="stats"></div>
+
+<hr>
+
+<h2>Anomalies (Outlier Detection)</h2>
+<button onclick="downloadAnomalies()">Download Anomalies CSV</button>
+<div id="anomalies"></div>
+
+<hr>
+
+<h2>Unique Counts (Categorical)</h2>
+<div id="unique"></div>
+
+<hr>
+
+<h2>Filter Data</h2>
+<select id="filterColumn"></select>
+<select id="filterCondition">
+<option value="==">=</option>
+<option value="!=">≠</option>
+<option value=">">&gt;</option>
+<option value="<">&lt;</option>
+<option value=">=">≥</option>
+<option value="<=">≤</option>
+</select>
+<input type="text" id="filterValue" placeholder="Value">
+<button onclick="applyFilter()">Apply Filter</button>
+<div id="filtered"></div>
+
+<hr>
+
+<h2>Group By + Aggregate</h2>
+<select id="groupColumn"></select>
+<select id="aggColumn"></select>
+<select id="aggFunc">
+<option value="sum">Sum</option>
+<option value="avg">Average</option>
+<option value="count">Count</option>
+</select>
+<button onclick="runGroup()">Run</button>
+<div id="grouped"></div>
+
+<hr>
+
+<h2>Date / Time Analysis</h2>
+<select id="dateColumn"></select>
+<button onclick="runDateAnalysis()">Analyze Trends</button>
+<div id="dateAnalysis"></div>
+
+<hr>
+
+<h2>Charts</h2>
+<div id="charts">
+<canvas id="barChart"></canvas>
+<canvas id="lineChart"></canvas>
+<canvas id="histChart"></canvas>
+</div>
+</div>
+
+<script>
+let data = [];
+let headers = [];
+let anomalies = [];
+
+/* LOAD CSV */
+function loadCSV() {
+    let file = document.getElementById("csvFile").files[0];
+    Papa.parse(file, {
+        complete: function(results) {
+            data = results.data;
+            headers = data[0];
+            data = data.slice(1).filter(r => r.length === headers.length);
+            updateUI();
+        }
+    });
+}
+
+function updateUI() {
+    previewTable(data, "preview");
+    fillDropdowns();
+    computeStats();
+    detectAnomalies();
+    uniqueCounts();
+}
+
+/* PREVIEW TABLE */
+function previewTable(rows, elementId) {
+    let html = "<table><tr>";
+    headers.forEach(h => html += `<th>${h}</th>`);
+    html += "</tr>";
+    rows.forEach(r => {
+        html += "<tr>"; r.forEach(c => html += `<td>${c}</td>`); html += "</tr>";
+    });
+    html += "</table>";
+    document.getElementById(elementId).innerHTML = html;
+}
+
+/* POPULATE SELECT BOXES */
+function fillDropdowns() {
+    ["filterColumn","groupColumn","aggColumn","dateColumn"].forEach(id => {
+        let sel = document.getElementById(id);
+        sel.innerHTML = "";
+        headers.forEach(h => sel.innerHTML += `<option value="${h}">${h}</option>`);
+    });
+}
+
+/* DESCRIPTIVE STATS */
+function computeStats() {
+    let html = "<table><tr><th>Column</th><th>Type</th><th>Mean</th><th>Min</th><th>Max</th></tr>";
+    headers.forEach(col => {
+        let colData = data.map(r => r[headers.indexOf(col)]).filter(x => x !== "");
+        let nums = colData.map(Number).filter(n => !isNaN(n));
+        if (nums.length > 0) {
+            let mean = nums.reduce((a,b)=>a+b)/nums.length;
+            html += `<tr><td>${col}</td><td>Numeric</td><td>${mean.toFixed(3)}</td>
+                     <td>${Math.min(...nums)}</td><td>${Math.max(...nums)}</td></tr>`;
+        } else {
+            html += `<tr><td>${col}</td><td>Category</td><td>-</td><td>-</td><td>-</td></tr>`;
+        }
+    });
+    html += "</table>";
+    document.getElementById("stats").innerHTML = html;
+}
+
+/* ANOMALY DETECTION (Z-score > 3) */
+function detectAnomalies() {
+    anomalies = [];
+    headers.forEach(col => {
+        let idx = headers.indexOf(col);
+        let nums = data.map(r => Number(r[idx])).filter(n => !isNaN(n));
+        if (nums.length === 0) return;
+        let mean = nums.reduce((a,b)=>a+b)/nums.length;
+        let std = Math.sqrt(nums.map(n => (n-mean)**2).reduce((a,b)=>a+b)/nums.length);
+        data.forEach((r,i) => {
+            let v = Number(r[idx]);
+            if (!isNaN(v) && Math.abs((v-mean)/std) > 3) anomalies.push(r);
+        });
+    });
+    previewTable(anomalies, "anomalies");
+}
+
+/* DOWNLOAD ANOMALIES */
+function downloadAnomalies() {
+    let csv = [headers.join(",")].concat(anomalies.map(r=>r.join(","))).join("\n");
+    let blob = new Blob([csv], {type:"text/csv"});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "anomalies.csv"; a.click();
+}
+
+/* UNIQUE COUNTS */
+function uniqueCounts() {
+    let html = "<table><tr><th>Column</th><th>Unique Values</th></tr>";
+    headers.forEach(col=>{
+        let idx = headers.indexOf(col);
+        let set = new Set(data.map(r=>r[idx]));
+        html += `<tr><td>${col}</td><td>${set.size}</td></tr>`;
+    });
+    html+="</table>";
+    document.getElementById("unique").innerHTML = html;
+}
+
+/* FILTER */
+function applyFilter() {
+    let col = document.getElementById("filterColumn").value;
+    let cond = document.getElementById("filterCondition").value;
+    let val = document.getElementById("filterValue").value;
+    let idx = headers.indexOf(col);
+    let rows = data.filter(r => eval(`r[idx] ${cond} "${val}"`));
+    previewTable(rows, "filtered");
+}
+
+/* GROUP BY */
+function runGroup() {
+    let gcol = document.getElementById("groupColumn").value;
+    let acol = document.getElementById("aggColumn").value;
+    let func = document.getElementById("aggFunc").value;
+    let gi = headers.indexOf(gcol);
+    let ai = headers.indexOf(acol);
+    let groups = {};
+
+    data.forEach(r => {
+        let key = r[gi];
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(Number(r[ai]));
+    });
+
+    let html = "<table><tr><th>Group</th><th>Result</th></tr>";
+    Object.keys(groups).forEach(g=>{
+        let arr = groups[g].filter(n => !isNaN(n));
+        let res = 0;
+        if (func==="sum") res = arr.reduce((a,b)=>a+b);
+        if (func==="avg") res = arr.reduce((a,b)=>a+b)/arr.length;
+        if (func==="count") res = arr.length;
+        html += `<tr><td>${g}</td><td>${res}</td></tr>`;
+    });
+    html+="</table>";
+    document.getElementById("grouped").innerHTML = html;
+}
+
+/* DATE ANALYSIS */
+function runDateAnalysis() {
+    let col = document.getElementById("dateColumn").value;
+    let idx = headers.indexOf(col);
+
+    let parsed = data.map(r => new Date(r[idx])).filter(d => d.toString() !== "Invalid Date");
+
+    let counts = {};
+    parsed.forEach(d => {
+        let key = d.getFullYear() + "-" + (d.getMonth()+1);
+        counts[key] = (counts[key] || 0) + 1;
+    });
+
+    document.getElementById("dateAnalysis").innerHTML = JSON.stringify(counts, null, 2);
+
+    createCharts(Object.keys(counts), Object.values(counts));
+}
+
+/* CHARTS */
+function createCharts(labels, values) {
+    new Chart(document.getElementById("barChart"), {
+        type:"bar",
+        data:{labels:labels, datasets:[{label:"Counts", data:values}]}
+    });
+    new Chart(document.getElementById("lineChart"), {
+        type:"line",
+        data:{labels:labels, datasets:[{label:"Trend", data:values}]}
+    });
+    new Chart(document.getElementById("histChart"), {
+        type:"bar",
+        data:{labels:labels, datasets:[{label:"Histogram", data:values}]}
+    });
+}
+</script>
+</body>
+</html>
